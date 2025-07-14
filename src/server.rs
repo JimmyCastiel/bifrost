@@ -20,26 +20,25 @@ pub(crate) enum ServerError {
 
 #[derive(Debug)]
 pub(crate) struct Server<T> {
-    token: CancellationToken,
+    shutdown_token: CancellationToken,
     listener: T,
     tracker: TaskTracker
 }
 
 impl Server<TcpListener> {
-    pub(crate) async fn new<B: ToSocketAddrs>(token: CancellationToken, bind_addr: B) -> Result<Self, ServerError> {
+    pub(crate) async fn new<B: ToSocketAddrs>(shutdown_token: CancellationToken, bind_addr: B) -> Result<Self, ServerError> {
         Ok(Self {
-            token,
+            shutdown_token,
             listener: TcpListener::bind(bind_addr).await?,
             tracker: TaskTracker::new()
         })
     }
 
-    pub(crate) async fn start(self) -> Result<(), ServerError> {
+    pub(crate) async fn start(self) {
         if self.tracker.is_closed() {
             self.tracker.reopen();
         }
         self.run().await;
-        Ok(())
     }
 
     async fn run(self) {
@@ -54,7 +53,7 @@ impl Server<TcpListener> {
                         Err(e) => println!("{e}")
                     }
                 }
-                _ = self.token.cancelled() => {
+                _ = self.shutdown_token.cancelled() => {
                     self.stop().await;
                     break;
                 }
