@@ -2,7 +2,7 @@ use crate::worker::Worker;
 
 use thiserror::Error as ThisError;
 
-use tokio::net::TcpListener;
+use tokio::net::{ TcpListener, ToSocketAddrs };
 
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -26,10 +26,10 @@ pub(crate) struct Server<T> {
 }
 
 impl Server<TcpListener> {
-    pub(crate) async fn new(token: CancellationToken, addr: String, port: u16) -> Result<Self, ServerError> {
+    pub(crate) async fn new<B: ToSocketAddrs>(token: CancellationToken, bind_addr: B) -> Result<Self, ServerError> {
         Ok(Self {
             token,
-            listener: TcpListener::bind((addr, port)).await?,
+            listener: TcpListener::bind(bind_addr).await?,
             tracker: TaskTracker::new()
         })
     }
