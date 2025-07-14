@@ -4,7 +4,7 @@ use tokio::io::{AsyncRead, AsyncWrite, Interest};
 use std::io::ErrorKind;
 use std::str::from_utf8;
 
-const BUFFER_SIZE: usize = 4096;
+const BUFFER_SIZE: usize = 16384;
 
 pub(crate) struct Worker<S: AsyncRead + AsyncWrite> {
     socket: S
@@ -18,8 +18,8 @@ impl Worker<TcpStream> {
     }
 
     pub(crate) async fn start(self) {
+        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         loop {
-            let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
             let n = self.read(&mut buffer).await;
             if n == 0 {
                 break;
