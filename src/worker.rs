@@ -2,6 +2,7 @@ use tokio::net::TcpStream;
 use tokio::io::{AsyncRead, AsyncWrite, Interest};
 
 use std::io::ErrorKind;
+use std::str::from_utf8;
 
 const BUFFER_SIZE: usize = 4096;
 
@@ -24,7 +25,11 @@ impl Worker<TcpStream> {
                 break;
             } else if n > 0 {
                 if let Ok(n) = n.try_into() {
-                    print!("{}", std::str::from_utf8(&buffer[..n]).unwrap())
+                    let payload = from_utf8(&buffer[..n]);
+                    match payload {
+                        Ok(payload) => print!("{payload}"),
+                        _ => continue
+                    }
                 }
             }
         }
