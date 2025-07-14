@@ -1,0 +1,64 @@
+use crate::worker::Worker;
+
+use thiserror::Error as ThisError;
+
+use tokio::net::TcpListener;
+
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
+
+use std::io::Error as IoError;
+
+#[derive(ThisError, Default, Debug)]
+pub(crate) enum ServerError {
+    #[default]
+    #[error("Unknown server error.")]
+    Unknown,
+    #[error("An IO error occured.")]
+    IoError(#[from] IoError)
+}
+
+#[derive(Debug)]
+pub(crate) struct Server<T> {
+    token: CancellationToken,
+    listener: T,
+    tracker: TaskTracker
+}
+
+impl Server<TcpListener> {
+    pub(crate) async fn new(token: CancellationToken, addr: String, port: u16) -> Result<Self, ServerError> {
+        Ok(Self {
+            token,
+            listener: TcpListener::bind((addr, port)).await?,
+            tracker: TaskTracker::new()
+        })
+    }
+
+    pub(crate) async fn start(self) -> Result<(), ServerError> {
+        loop {
+            tokio::select! {
+                res = self.listener.accept() => {
+                    match res {
+                        Ok((socket, _)) => {
+                            println!("{:?}", socket);
+                            self.tracker.spawn(Worker::new(socket).start());
+                        },
+                        Err(e) => println!("{}", e)
+                    }
+                }
+                _ = self.token.cancelled() => {
+                    self.stop().await;
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn stop(self) {
+        drop(self.listener);
+        self.tracker.close();
+        self.tracker.wait().await;
+    }
+}
+
