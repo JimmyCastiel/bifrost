@@ -35,6 +35,14 @@ impl Server<TcpListener> {
     }
 
     pub(crate) async fn start(self) -> Result<(), ServerError> {
+        if self.tracker.is_closed() {
+            self.tracker.reopen();
+        }
+        self.run().await;
+        Ok(())
+    }
+
+    async fn run(self) {
         loop {
             tokio::select! {
                 res = self.listener.accept() => {
@@ -52,7 +60,6 @@ impl Server<TcpListener> {
                 }
             }
         }
-        Ok(())
     }
 
     pub(crate) async fn stop(self) {
