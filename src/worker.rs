@@ -22,8 +22,10 @@ impl Worker<TcpStream> {
             let n = self.read(&mut buffer).await;
             if n == 0 {
                 break;
-            } else if n > 0 && (n as usize) < usize::MAX {
-                print!("{}", std::str::from_utf8(&buffer[..(n as usize)]).unwrap())
+            } else if n > 0 {
+                if let Ok(n) = n.try_into() {
+                    print!("{}", std::str::from_utf8(&buffer[..n]).unwrap())
+                }
             }
         }
         let _ = self.write("Thank you for connecting.\n".as_bytes()).await;
