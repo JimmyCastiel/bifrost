@@ -38,16 +38,16 @@ impl Worker<TcpStream> {
                         return n as isize;
                     },
                     Err(e) => {
-                        println!("{}", e);
+                        println!("{e}");
                     }
                 }
             },
             Ok(_) => return -3,
             Err(e) => {
-                println!("{}", e);
+                println!("{e}");
             }
         }
-        return -1;
+        -1
     }
 
     async fn write(&self, buffer: &[u8]) -> isize {
@@ -59,16 +59,16 @@ impl Worker<TcpStream> {
                         return n as isize;
                     },
                     Err(e) => {
-                        println!("{}", e);
+                        println!("{e}");
                     }
                 }
             },
             Ok(_) => return -3,
             Err(e) => {
-                println!("{}", e);
+                println!("{e}");
             }
         }
-        return -1;
+        -1
     }
 }
 

@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let token: CancellationToken = CancellationToken::new();
     let tracker: TaskTracker = TaskTracker::new();
     let server = Server::new(token.clone(), "127.0.0.1".to_string(), 8080).await?;
-    println!("{:?}", server);
+    println!("{server:?}");
     tracker.spawn(server.start());
     tracker.close();
     loop {

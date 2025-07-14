@@ -40,10 +40,10 @@ impl Server<TcpListener> {
                 res = self.listener.accept() => {
                     match res {
                         Ok((socket, _)) => {
-                            println!("{:?}", socket);
+                            println!("{socket:?}");
                             self.tracker.spawn(Worker::new(socket).start());
                         },
-                        Err(e) => println!("{}", e)
+                        Err(e) => println!("{e}")
                     }
                 }
                 _ = self.token.cancelled() => {
