@@ -1,14 +1,13 @@
 mod server;
 mod worker;
 
-use tokio;
+use crate::server::Server;
+
 use tokio::signal;
 use tokio_util::task::TaskTracker;
 use tokio_util::sync::CancellationToken;
 
 use std::error::Error;
-
-use server::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
