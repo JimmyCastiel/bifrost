@@ -12,8 +12,8 @@ use std::io::{
 #[derive(ThisError, Default, Debug)]
 pub(crate) enum WorkerError {
     #[default]
-    #[error("Unknown worker error.")]
-    Unknown,
+    #[error("Unrecoverable worker error.")]
+    Unrecoverable,
     #[error("An IO error occured.")]
     IoError(#[from] IoError),
     #[error("Empty read.")]
@@ -49,14 +49,14 @@ impl Worker<TcpStream> {
                 client_read = self.read(&self.client_socket, &mut client_buffer) => {
                     match client_read {
                         Ok(n) => {
-                            let _ = self.write(&self.backend_socket, &client_buffer[..n]).await;
-                            let resp = self.read(&self.backend_socket, &mut client_buffer).await;
-                            if let Ok(n) = resp {
-                                let _ = self.write(&self.client_socket, &client_buffer[..n]).await;
-                            }
+                            let r = self.write(&self.backend_socket, &client_buffer[..n]).await;
+                            println!("{r:?}");
                         },
                         Err(e) => {
+                            println!("{e:?}");
                             if let WorkerError::EmptyRead = e {
+                                break;
+                            } else if let WorkerError::Unrecoverable = e {
                                 break;
                             }
                         }
@@ -66,14 +66,14 @@ impl Worker<TcpStream> {
                 backend_read = self.read(&self.backend_socket, &mut backend_buffer) => {
                     match backend_read {
                         Ok(n) => {
-                            let _ = self.write(&self.client_socket, &backend_buffer[..n]).await;
-                            let resp = self.read(&self.backend_socket, &mut backend_buffer).await;
-                            if let Ok(n) = resp {
-                                let _ = self.write(&self.client_socket, &backend_buffer[..n]).await;
-                            }
+                            let r = self.write(&self.client_socket, &backend_buffer[..n]).await;
+                            println!("{r:?}");
                         },
                         Err(e) => {
+                            println!("{e:?}");
                             if let WorkerError::EmptyRead = e {
+                                break;
+                            } else if let WorkerError::Unrecoverable = e {
                                 break;
                             }
                         }
@@ -111,7 +111,7 @@ impl Worker<TcpStream> {
             Ok(_) => return Err(WorkerError::Continue),
             Err(e) => println!("{e}"),
         }
-        Err(WorkerError::Continue)
+        Err(WorkerError::Unrecoverable)
     }
 
     async fn write(&self, socket: &TcpStream, buffer: &[u8]) -> WorkerResult {
@@ -131,7 +131,7 @@ impl Worker<TcpStream> {
             Ok(_) => return Err(WorkerError::Continue),
             Err(e) => println!("{e}")
         }
-        Err(WorkerError::Continue)
+        Err(WorkerError::Unrecoverable)
     }
 }
 
