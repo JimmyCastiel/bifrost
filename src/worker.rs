@@ -2,14 +2,20 @@ use thiserror::Error as ThisError;
 
 use tokio::net::TcpStream;
 use tokio::io::{AsyncRead, AsyncWrite, Interest};
+use tokio::select;
 
-use std::io::ErrorKind;
+use std::io::{
+    Error as IoError,
+    ErrorKind
+};
 
 #[derive(ThisError, Default, Debug)]
 pub(crate) enum WorkerError {
     #[default]
     #[error("Unknown worker error.")]
     Unknown,
+    #[error("An IO error occured.")]
+    IoError(#[from] IoError),
     #[error("Empty read.")]
     EmptyRead,
     #[error("Empty write.")]
@@ -35,26 +41,57 @@ impl Worker<TcpStream> {
         }
     }
 
-    pub(crate) async fn start(self) {
-        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+    pub(crate) async fn start(self) -> Result<(), WorkerError> {
+        let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+        let mut backend_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         loop {
-            let read = self.read(&self.client_socket, &mut buffer).await;
-            match read {
-                Ok(n) => {
-                    let _ = self.write(&self.backend_socket, &buffer[..n]).await;
-                    let resp = self.read(&self.backend_socket, &mut buffer).await;
-                    if let Ok(n) = resp {
-                        let _ = self.write(&self.client_socket, &buffer[..n]).await;
+            select! {
+                client_read = self.read(&self.client_socket, &mut client_buffer) => {
+                    match client_read {
+                        Ok(n) => {
+                            let _ = self.write(&self.backend_socket, &client_buffer[..n]).await;
+                            let resp = self.read(&self.backend_socket, &mut client_buffer).await;
+                            if let Ok(n) = resp {
+                                let _ = self.write(&self.client_socket, &client_buffer[..n]).await;
+                            }
+                        },
+                        Err(e) => {
+                            if let WorkerError::EmptyRead = e {
+                                break;
+                            }
+                        }
                     }
-                },
-                Err(e) => {
-                    if let WorkerError::EmptyRead = e {
-                        break;
+
+                }
+                backend_read = self.read(&self.backend_socket, &mut backend_buffer) => {
+                    match backend_read {
+                        Ok(n) => {
+                            let _ = self.write(&self.client_socket, &backend_buffer[..n]).await;
+                            let resp = self.read(&self.backend_socket, &mut backend_buffer).await;
+                            if let Ok(n) = resp {
+                                let _ = self.write(&self.client_socket, &backend_buffer[..n]).await;
+                            }
+                        },
+                        Err(e) => {
+                            if let WorkerError::EmptyRead = e {
+                                break;
+                            }
+                        }
                     }
+
                 }
             }
+            let client_ready = self.client_socket.ready(Interest::READABLE | Interest::WRITABLE).await?;
+            let backend_ready = self.backend_socket.ready(Interest::READABLE | Interest::WRITABLE).await?;
+            if client_ready.is_read_closed()
+                && client_ready.is_write_closed() 
+                && backend_ready.is_read_closed()
+                && backend_ready.is_write_closed() {
+                break;
+            }
         }
-        let _ = self.write(&self.client_socket, "Thank you for connecting.\n".as_bytes()).await;
+        //let _ = self.write(&self.client_socket, "Thank you for connecting.\n".as_bytes()).await;
+        Ok(())
     }
 
     async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
