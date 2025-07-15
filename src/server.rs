@@ -2,7 +2,7 @@ use crate::worker::Worker;
 
 use thiserror::Error as ThisError;
 
-use tokio::net::{ TcpListener, ToSocketAddrs };
+use tokio::net::{ TcpListener, TcpStream, ToSocketAddrs };
 
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -46,9 +46,10 @@ impl Server<TcpListener> {
             tokio::select! {
                 res = self.listener.accept() => {
                     match res {
-                        Ok((socket, _)) => {
-                            println!("{socket:?}");
-                            self.tracker.spawn(Worker::new(socket).start());
+                        Ok((client_socket, _)) => {
+                            println!("{client_socket:?}");
+                            let backend_socket: TcpStream = (TcpStream::connect("www.google.fr:80").await).unwrap();
+                            self.tracker.spawn(Worker::new(client_socket, backend_socket).start());
                         },
                         Err(e) => println!("{e}")
                     }
