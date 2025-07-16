@@ -2,7 +2,7 @@
 name = "bifrost"
 version = "0.1.0"
 edition = "2024"
-default-run = "server"
+default-run = "bifrost"
 
 [dependencies]
 thiserror = "2.0.12"
@@ -10,9 +10,9 @@ tokio = { version = "1.46.1", features = ["io-std", "net", "macros", "rt-multi-t
 tokio-util = { version = "0.7.15", features = ["codec", "io-util", "rt"] }
 
 [[bin]]
-name = "server"
+name = "bifrost"
 path = "src/main.rs"
 
 [[bin]]
-name = "client"
+name = "bifrost-client"
 path = "src/client.rs"
