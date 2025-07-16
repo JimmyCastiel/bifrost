@@ -95,8 +95,8 @@ impl Worker<TcpStream> {
     }
 
     async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
-        match self.client_socket.ready(Interest::READABLE).await {
-            Ok(ref ready) if ready.is_readable() => {
+        match socket.readable().await {
+            Ok(_) => {
                 match socket.try_read(buffer) {
                     Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
                     Ok(n) => {
@@ -108,15 +108,14 @@ impl Worker<TcpStream> {
                     Err(e) => println!("{e}")
                 }
             },
-            Ok(_) => return Err(WorkerError::Continue),
             Err(e) => println!("{e}"),
         }
         Err(WorkerError::Unrecoverable)
     }
 
     async fn write(&self, socket: &TcpStream, buffer: &[u8]) -> WorkerResult {
-        match self.client_socket.ready(Interest::WRITABLE).await {
-            Ok(ref ready) if ready.is_writable() => {
+        match socket.writable().await {
+            Ok(_) => {
                 match socket.try_write(buffer) {
                     Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
                     Ok(n) => {
@@ -128,7 +127,6 @@ impl Worker<TcpStream> {
                     Err(e) => println!("{e}")
                 }
             },
-            Ok(_) => return Err(WorkerError::Continue),
             Err(e) => println!("{e}")
         }
         Err(WorkerError::Unrecoverable)

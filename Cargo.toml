@@ -2,8 +2,17 @@
 name = "bifrost"
 version = "0.1.0"
 edition = "2024"
+default-run = "server"
 
 [dependencies]
 thiserror = "2.0.12"
-tokio = { version = "1.46.1", features = ["net", "macros", "rt-multi-thread", "signal", "time", "tracing"] }
-tokio-util = { version = "0.7.15", features = ["rt"] }
+tokio = { version = "1.46.1", features = ["io-std", "net", "macros", "rt-multi-thread", "signal", "time", "tracing"] }
+tokio-util = { version = "0.7.15", features = ["codec", "io-util", "rt"] }
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
