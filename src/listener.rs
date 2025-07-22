@@ -43,6 +43,7 @@ impl Listener<TcpListener> {
 }
 
 impl Runnable for Listener<TcpListener> {
+    #[allow(refining_impl_trait)]
     async fn run(self) -> ListenerResult {
         if self.tracker.is_closed() {
             self.tracker.reopen();

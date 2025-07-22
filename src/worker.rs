@@ -43,7 +43,6 @@ impl Worker<TcpStream> {
         }
     }
 
-
     async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
         match socket.readable().await {
             Ok(_) => {
@@ -84,6 +83,7 @@ impl Worker<TcpStream> {
 }
 
 impl Runnable for Worker<TcpStream> {
+    #[allow(refining_impl_trait)]
     async fn run(self) -> Result<(), WorkerError> {
         let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         let mut backend_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
