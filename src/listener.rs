@@ -34,14 +34,10 @@ impl Listener<TcpListener> {
         })
     }
 
-    pub(crate) async fn start(self) {
+    pub(crate) async fn run(self) {
         if self.tracker.is_closed() {
             self.tracker.reopen();
         }
-        self.run().await;
-    }
-
-    async fn run(self) {
         loop {
             tokio::select! {
                 res = self.listener.accept() => {
@@ -55,15 +51,10 @@ impl Listener<TcpListener> {
                     }
                 }
                 _ = self.shutdown_token.cancelled() => {
-                    self.stop().await;
                     break;
                 }
             }
         }
-    }
-
-    pub(crate) async fn stop(self) {
-        drop(self.listener);
         self.tracker.close();
         self.tracker.wait().await;
     }
