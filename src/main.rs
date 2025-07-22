@@ -1,7 +1,7 @@
 mod listener;
 mod worker;
 
-use crate::listener::Listener;
+use crate::listener::{Runnable, Listener};
 
 use tokio::signal;
 

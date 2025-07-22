@@ -1,13 +1,14 @@
 use crate::worker::Worker;
 
+use std::error::Error;
+use std::io::Error as IoError;
+
 use thiserror::Error as ThisError;
 
 use tokio::net::{ TcpListener, TcpStream, ToSocketAddrs };
 
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
-
-use std::io::Error as IoError;
 
 #[derive(ThisError, Default, Debug)]
 pub(crate) enum ListenerError {
@@ -17,6 +18,12 @@ pub(crate) enum ListenerError {
     #[error("An IO error occured.")]
     IoError(#[from] IoError)
 }
+
+pub(crate) trait Runnable {
+    async fn run(self) -> Result<(), impl Error>;
+}
+
+pub type ListenerResult = Result<(), ListenerError>;
 
 #[derive(Debug)]
 pub(crate) struct Listener<T> {
@@ -33,8 +40,10 @@ impl Listener<TcpListener> {
             tracker: TaskTracker::new()
         })
     }
+}
 
-    pub(crate) async fn run(self) {
+impl Runnable for Listener<TcpListener> {
+    async fn run(self) -> ListenerResult {
         if self.tracker.is_closed() {
             self.tracker.reopen();
         }
@@ -44,8 +53,8 @@ impl Listener<TcpListener> {
                     match res {
                         Ok((client_socket, _)) => {
                             println!("{client_socket:?}");
-                            let backend_socket: TcpStream = (TcpStream::connect("www.google.fr:80").await).unwrap();
-                            self.tracker.spawn(Worker::new(client_socket, backend_socket).start());
+                            let backend_socket: TcpStream = TcpStream::connect("www.google.fr:80").await?;
+                            self.tracker.spawn(Worker::new(client_socket, backend_socket).run());
                         },
                         Err(e) => println!("{e}")
                     }
@@ -57,6 +66,7 @@ impl Listener<TcpListener> {
         }
         self.tracker.close();
         self.tracker.wait().await;
+        Ok(())
     }
 }
 

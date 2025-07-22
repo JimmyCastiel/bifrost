@@ -1,3 +1,5 @@
+use crate::listener::Runnable;
+
 use thiserror::Error as ThisError;
 
 use tokio::net::TcpStream;
@@ -41,7 +43,48 @@ impl Worker<TcpStream> {
         }
     }
 
-    pub(crate) async fn start(self) -> Result<(), WorkerError> {
+
+    async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
+        match socket.readable().await {
+            Ok(_) => {
+                match socket.try_read(buffer) {
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
+                    Ok(n) => {
+                        if n == 0 {
+                            return Err(WorkerError::EmptyRead);
+                        }
+                        return Ok(n);
+                    },
+                    Err(e) => println!("{e}")
+                }
+            },
+            Err(e) => println!("{e}"),
+        }
+        Err(WorkerError::Unrecoverable)
+    }
+
+    async fn write(&self, socket: &TcpStream, buffer: &[u8]) -> WorkerResult {
+        match socket.writable().await {
+            Ok(_) => {
+                match socket.try_write(buffer) {
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
+                    Ok(n) => {
+                        if n == 0 {
+                            return Err(WorkerError::EmptyWrite);
+                        }
+                        return Ok(n);
+                    },
+                    Err(e) => println!("{e}")
+                }
+            },
+            Err(e) => println!("{e}")
+        }
+        Err(WorkerError::Unrecoverable)
+    }
+}
+
+impl Runnable for Worker<TcpStream> {
+    async fn run(self) -> Result<(), WorkerError> {
         let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         let mut backend_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         loop {
@@ -93,43 +136,4 @@ impl Worker<TcpStream> {
         //let _ = self.write(&self.client_socket, "Thank you for connecting.\n".as_bytes()).await;
         Ok(())
     }
-
-    async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
-        match socket.readable().await {
-            Ok(_) => {
-                match socket.try_read(buffer) {
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
-                    Ok(n) => {
-                        if n == 0 {
-                            return Err(WorkerError::EmptyRead);
-                        }
-                        return Ok(n);
-                    },
-                    Err(e) => println!("{e}")
-                }
-            },
-            Err(e) => println!("{e}"),
-        }
-        Err(WorkerError::Unrecoverable)
-    }
-
-    async fn write(&self, socket: &TcpStream, buffer: &[u8]) -> WorkerResult {
-        match socket.writable().await {
-            Ok(_) => {
-                match socket.try_write(buffer) {
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
-                    Ok(n) => {
-                        if n == 0 {
-                            return Err(WorkerError::EmptyWrite);
-                        }
-                        return Ok(n);
-                    },
-                    Err(e) => println!("{e}")
-                }
-            },
-            Err(e) => println!("{e}")
-        }
-        Err(WorkerError::Unrecoverable)
-    }
 }
-
