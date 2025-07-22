@@ -16,7 +16,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let tracker: TaskTracker = TaskTracker::new();
     let server = Listener::new(token.clone(), ("127.0.0.1".to_string(), 8080)).await?;
     println!("{server:?}");
-    tracker.spawn(server.run());
+    tracker.spawn(async move {
+        let r = server.run().await;
+        if let Err(e) = r {
+            println!("{e}");
+        }
+    });
     tracker.close();
     loop {
         tokio::select! {

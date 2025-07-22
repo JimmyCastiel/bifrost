@@ -15,7 +15,7 @@ pub(crate) enum ListenerError {
     #[default]
     #[error("Unknown server error.")]
     Unknown,
-    #[error("An IO error occured.")]
+    #[error("An IO error occured with message : {}", self.source().unwrap_or(&Self::Unknown))]
     IoError(#[from] IoError)
 }
 
