@@ -10,7 +10,7 @@ use tokio_util::task::TaskTracker;
 use std::io::Error as IoError;
 
 #[derive(ThisError, Default, Debug)]
-pub(crate) enum ServerError {
+pub(crate) enum ListenerError {
     #[default]
     #[error("Unknown server error.")]
     Unknown,
@@ -19,14 +19,14 @@ pub(crate) enum ServerError {
 }
 
 #[derive(Debug)]
-pub(crate) struct Server<T> {
+pub(crate) struct Listener<T> {
     shutdown_token: CancellationToken,
     listener: T,
     tracker: TaskTracker
 }
 
-impl Server<TcpListener> {
-    pub(crate) async fn new<B: ToSocketAddrs>(shutdown_token: CancellationToken, bind_addr: B) -> Result<Self, ServerError> {
+impl Listener<TcpListener> {
+    pub(crate) async fn new<B: ToSocketAddrs>(shutdown_token: CancellationToken, bind_addr: B) -> Result<Self, ListenerError> {
         Ok(Self {
             shutdown_token,
             listener: TcpListener::bind(bind_addr).await?,
