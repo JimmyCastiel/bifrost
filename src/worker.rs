@@ -28,7 +28,7 @@ pub(crate) enum WorkerError {
 
 type WorkerResult = Result<usize, WorkerError>;
 
-const BUFFER_SIZE: usize = 16384;
+const BUFFER_SIZE: usize = 8192;
 
 pub(crate) struct Worker<S: AsyncRead + AsyncWrite> {
     client_socket: S,
@@ -85,14 +85,14 @@ impl Worker<TcpStream> {
 impl Runnable for Worker<TcpStream> {
     #[allow(refining_impl_trait)]
     async fn run(self) -> Result<(), WorkerError> {
-        let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
-        let mut backend_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         loop {
             select! {
-                client_read = self.read(&self.client_socket, &mut client_buffer) => {
+                _ = self.client_socket.readable() => {
+                    let client_read = self.read(&self.client_socket, &mut buffer).await;
                     match client_read {
                         Ok(n) => {
-                            let r = self.write(&self.backend_socket, &client_buffer[..n]).await;
+                            let r = self.write(&self.backend_socket, &buffer[..n]).await;
                             println!("{r:?}");
                         },
                         Err(e) => {
@@ -104,12 +104,12 @@ impl Runnable for Worker<TcpStream> {
                             }
                         }
                     }
-
                 }
-                backend_read = self.read(&self.backend_socket, &mut backend_buffer) => {
+                _ = self.backend_socket.readable() => {
+                    let backend_read = self.read(&self.backend_socket, &mut buffer).await;
                     match backend_read {
                         Ok(n) => {
-                            let r = self.write(&self.client_socket, &backend_buffer[..n]).await;
+                            let r = self.write(&self.client_socket, &buffer[..n]).await;
                             println!("{r:?}");
                         },
                         Err(e) => {
