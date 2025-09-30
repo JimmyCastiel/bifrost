@@ -44,37 +44,27 @@ impl Worker<TcpStream> {
     }
 
     async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
-        match socket.readable().await {
-            Ok(_) => {
-                match socket.try_read(buffer) {
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
-                    Ok(n) => {
-                        if n == 0 {
-                            return Err(WorkerError::EmptyRead);
-                        }
-                        return Ok(n);
-                    },
-                    Err(e) => println!("{e}")
+        match socket.try_read(buffer) {
+            Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
+            Ok(n) => {
+                if n == 0 {
+                    return Err(WorkerError::EmptyRead);
                 }
+                return Ok(n);
             },
-            Err(e) => println!("{e}"),
+            Err(e) => println!("{e}")
         }
         Err(WorkerError::Unrecoverable)
     }
 
     async fn write(&self, socket: &TcpStream, buffer: &[u8]) -> WorkerResult {
-        match socket.writable().await {
-            Ok(_) => {
-                match socket.try_write(buffer) {
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
-                    Ok(n) => {
-                        if n == 0 {
-                            return Err(WorkerError::EmptyWrite);
-                        }
-                        return Ok(n);
-                    },
-                    Err(e) => println!("{e}")
+        match socket.try_write(buffer) {
+            Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
+            Ok(n) => {
+                if n == 0 {
+                    return Err(WorkerError::EmptyWrite);
                 }
+                return Ok(n);
             },
             Err(e) => println!("{e}")
         }
