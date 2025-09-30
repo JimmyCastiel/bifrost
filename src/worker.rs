@@ -89,8 +89,7 @@ impl Runnable for Worker<TcpStream> {
         loop {
             select! {
                 _ = self.client_socket.readable() => {
-                    let client_read = self.read(&self.client_socket, &mut buffer).await;
-                    match client_read {
+                    match self.read(&self.client_socket, &mut buffer).await {
                         Ok(n) => {
                             let r = self.write(&self.backend_socket, &buffer[..n]).await;
                             println!("{r:?}");
@@ -106,8 +105,7 @@ impl Runnable for Worker<TcpStream> {
                     }
                 }
                 _ = self.backend_socket.readable() => {
-                    let backend_read = self.read(&self.backend_socket, &mut buffer).await;
-                    match backend_read {
+                    match self.read(&self.backend_socket, &mut buffer).await {
                         Ok(n) => {
                             let r = self.write(&self.client_socket, &buffer[..n]).await;
                             println!("{r:?}");
