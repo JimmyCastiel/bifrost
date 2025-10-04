@@ -37,7 +37,7 @@ pub(crate) enum WorkerError {
 
 type WorkerResult = Result<usize, WorkerError>;
 
-const BUFFER_SIZE: usize = 8192;
+const BUFFER_SIZE: usize = 16384;
 
 pub(crate) struct Worker<S: AsyncRead + AsyncWrite> {
     client_socket: S,

@@ -15,8 +15,10 @@ pub(crate) enum ListenerError {
     #[default]
     #[error("Unknown server error.")]
     Unknown,
-    #[error("An IO error occured with message : {}", self.source().unwrap_or(&Self::Unknown))]
-    IoError(#[from] IoError)
+    #[error("An IO error occured with message : {}.", self.source().unwrap_or(&Self::Unknown))]
+    IoError(#[from] IoError),
+    #[error("Server was shutdown, please instanciate a new instance.")]
+    Unusable
 }
 
 pub(crate) trait Runnable {
@@ -46,7 +48,7 @@ impl Runnable for Listener<TcpListener> {
     #[allow(refining_impl_trait)]
     async fn run(self) -> ListenerResult {
         if self.tracker.is_closed() {
-            self.tracker.reopen();
+            return Err(ListenerError::Unusable);
         }
         loop {
             tokio::select! {
@@ -61,6 +63,7 @@ impl Runnable for Listener<TcpListener> {
                     }
                 }
                 _ = self.shutdown_token.cancelled() => {
+                    drop(self.listener);
                     break;
                 }
             }
