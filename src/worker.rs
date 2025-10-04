@@ -2,9 +2,18 @@ use crate::listener::Runnable;
 
 use thiserror::Error as ThisError;
 
-use tokio::net::TcpStream;
-use tokio::io::{AsyncRead, AsyncWrite, Interest};
-use tokio::select;
+use tokio::net::{
+    TcpStream,
+    tcp::{
+        OwnedReadHalf,
+        OwnedWriteHalf
+    }
+};
+use tokio::io::{
+    AsyncRead,
+    AsyncWrite,
+};
+use tokio_util::task::TaskTracker;
 
 use std::io::{
     Error as IoError,
@@ -32,18 +41,18 @@ const BUFFER_SIZE: usize = 8192;
 
 pub(crate) struct Worker<S: AsyncRead + AsyncWrite> {
     client_socket: S,
-    backend_socket: S
+    backend_socket: S,
 }
 
 impl Worker<TcpStream> {
     pub(crate) fn new(client_socket: TcpStream, backend_socket: TcpStream) -> Self {
         Worker {
             client_socket,
-            backend_socket
+            backend_socket,
         }
     }
 
-    async fn read(&self, socket: &TcpStream, buffer: &mut [u8]) -> WorkerResult {
+    async fn read(socket: &OwnedReadHalf, buffer: &mut [u8]) -> WorkerResult {
         match socket.try_read(buffer) {
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
             Ok(n) => {
@@ -57,7 +66,7 @@ impl Worker<TcpStream> {
         Err(WorkerError::Unrecoverable)
     }
 
-    async fn write(&self, socket: &TcpStream, buffer: &[u8]) -> WorkerResult {
+    async fn write(socket: &OwnedWriteHalf, buffer: &[u8]) -> WorkerResult {
         match socket.try_write(buffer) {
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => { return Err(WorkerError::Continue); },
             Ok(n) => {
@@ -75,13 +84,16 @@ impl Worker<TcpStream> {
 impl Runnable for Worker<TcpStream> {
     #[allow(refining_impl_trait)]
     async fn run(self) -> Result<(), WorkerError> {
-        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
-        loop {
-            select! {
-                _ = self.client_socket.readable() => {
-                    match self.read(&self.client_socket, &mut buffer).await {
+        let (client_read, client_write): (OwnedReadHalf, OwnedWriteHalf) = self.client_socket.into_split();
+        let (backend_read, backend_write): (OwnedReadHalf, OwnedWriteHalf) = self.backend_socket.into_split();
+        let tracker = TaskTracker::new();
+        tracker.spawn(async move {
+            let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+            loop {
+                if (client_read.readable().await).is_ok() {
+                    match Worker::read(&client_read, &mut client_buffer).await {
                         Ok(n) => {
-                            let r = self.write(&self.backend_socket, &buffer[..n]).await;
+                            let r = Worker::write(&backend_write, &client_buffer[..n]).await;
                             println!("{r:?}");
                         },
                         Err(e) => {
@@ -94,10 +106,15 @@ impl Runnable for Worker<TcpStream> {
                         }
                     }
                 }
-                _ = self.backend_socket.readable() => {
-                    match self.read(&self.backend_socket, &mut buffer).await {
+            }
+        });
+        tracker.spawn(async move {
+            let mut backend_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+            loop {
+                if (backend_read.readable().await).is_ok() {
+                    match Worker::read(&backend_read, &mut backend_buffer).await {
                         Ok(n) => {
-                            let r = self.write(&self.client_socket, &buffer[..n]).await;
+                            let r = Worker::write(&client_write, &backend_buffer[..n]).await;
                             println!("{r:?}");
                         },
                         Err(e) => {
@@ -109,19 +126,11 @@ impl Runnable for Worker<TcpStream> {
                             }
                         }
                     }
-
                 }
             }
-            let client_ready = self.client_socket.ready(Interest::READABLE | Interest::WRITABLE).await?;
-            let backend_ready = self.backend_socket.ready(Interest::READABLE | Interest::WRITABLE).await?;
-            if client_ready.is_read_closed()
-                && client_ready.is_write_closed() 
-                && backend_ready.is_read_closed()
-                && backend_ready.is_write_closed() {
-                break;
-            }
-        }
-        //let _ = self.write(&self.client_socket, "Thank you for connecting.\n".as_bytes()).await;
+        });
+        tracker.close();
+        tracker.wait().await;    
         Ok(())
     }
 }
