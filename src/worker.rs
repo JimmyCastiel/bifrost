@@ -86,8 +86,17 @@ impl Worker<TcpStream> {
             if (read.readable().await).is_ok() {
                 match Worker::read(&read, &mut client_buffer).await {
                     Ok(n) => {
-                        let r = Worker::write(&write, &client_buffer[..n]).await;
-                        println!("{r:?}");
+                        match Worker::write(&write, &client_buffer[..n]).await {
+                            Ok(_n) => {},
+                            Err(e) => {
+                                println!("{e:?}");
+                                if let WorkerError::EmptyWrite = e {
+                                    break None;
+                                } else if let WorkerError::Unrecoverable = e {
+                                    break Some(e);
+                                }
+                            }
+                        }
                     },
                     Err(e) => {
                         println!("{e:?}");
