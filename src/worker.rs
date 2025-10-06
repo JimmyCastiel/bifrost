@@ -79,6 +79,29 @@ impl Worker<TcpStream> {
         }
         Err(WorkerError::Unrecoverable)
     }
+
+    async fn exec(read: OwnedReadHalf, write: OwnedWriteHalf) {
+        let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+        loop {
+            if (read.readable().await).is_ok() {
+                match Worker::read(&read, &mut client_buffer).await {
+                    Ok(n) => {
+                        let r = Worker::write(&write, &client_buffer[..n]).await;
+                        println!("{r:?}");
+                    },
+                    Err(e) => {
+                        println!("{e:?}");
+                        if let WorkerError::EmptyRead = e {
+                            break;
+                        } else if let WorkerError::Unrecoverable = e {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+    }
 }
 
 impl Runnable for Worker<TcpStream> {
@@ -87,48 +110,8 @@ impl Runnable for Worker<TcpStream> {
         let (client_read, client_write): (OwnedReadHalf, OwnedWriteHalf) = self.client_socket.into_split();
         let (backend_read, backend_write): (OwnedReadHalf, OwnedWriteHalf) = self.backend_socket.into_split();
         let tracker = TaskTracker::new();
-        tracker.spawn(async move {
-            let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
-            loop {
-                if (client_read.readable().await).is_ok() {
-                    match Worker::read(&client_read, &mut client_buffer).await {
-                        Ok(n) => {
-                            let r = Worker::write(&backend_write, &client_buffer[..n]).await;
-                            println!("{r:?}");
-                        },
-                        Err(e) => {
-                            println!("{e:?}");
-                            if let WorkerError::EmptyRead = e {
-                                break;
-                            } else if let WorkerError::Unrecoverable = e {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        tracker.spawn(async move {
-            let mut backend_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
-            loop {
-                if (backend_read.readable().await).is_ok() {
-                    match Worker::read(&backend_read, &mut backend_buffer).await {
-                        Ok(n) => {
-                            let r = Worker::write(&client_write, &backend_buffer[..n]).await;
-                            println!("{r:?}");
-                        },
-                        Err(e) => {
-                            println!("{e:?}");
-                            if let WorkerError::EmptyRead = e {
-                                break;
-                            } else if let WorkerError::Unrecoverable = e {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        tracker.spawn(Worker::exec(client_read, backend_write));
+        tracker.spawn(Worker::exec(backend_read, client_write));
         tracker.close();
         tracker.wait().await;    
         Ok(())
