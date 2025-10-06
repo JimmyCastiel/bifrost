@@ -80,7 +80,7 @@ impl Worker<TcpStream> {
         Err(WorkerError::Unrecoverable)
     }
 
-    async fn exec(read: OwnedReadHalf, write: OwnedWriteHalf) {
+    async fn exec(read: OwnedReadHalf, write: OwnedWriteHalf) -> Option<WorkerError> {
         let mut client_buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
         loop {
             if (read.readable().await).is_ok() {
@@ -92,9 +92,9 @@ impl Worker<TcpStream> {
                     Err(e) => {
                         println!("{e:?}");
                         if let WorkerError::EmptyRead = e {
-                            break;
+                            break None;
                         } else if let WorkerError::Unrecoverable = e {
-                            break;
+                            break Some(e);
                         }
                     }
                 }
