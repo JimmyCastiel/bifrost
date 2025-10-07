@@ -87,7 +87,9 @@ impl Worker<TcpStream> {
                 match Worker::read(&read, &mut client_buffer).await {
                     Ok(n) => {
                         match Worker::write(&write, &client_buffer[..n]).await {
-                            Ok(_n) => {},
+                            Ok(n) => {
+                                println!("{n}");
+                            },
                             Err(e) => {
                                 println!("{e:?}");
                                 if let WorkerError::EmptyWrite = e {
